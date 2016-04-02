@@ -708,3 +708,85 @@ class Prob_Model(object):
             'Bounds',
             '\n'.join([str(var) for var in self.LP_Vars])
         ))
+
+    def add(self, Lp_Attributes):
+        """Add LP_Vars and _Constraints_.
+
+        Parameters
+        ----------
+        Lp_Attributes : iterable, Prob_Variable, Prob_Constraint
+            Either an iterable containing LP_Vars and _Constraints_ or a single variable or constraint.
+
+        Returns
+        -------
+        None
+
+
+        """
+        if isinstance(Lp_Attributes, collections.Iterable):
+            for Element in Lp_Attributes:
+                self.add(Element)
+        elif isinstance(Lp_Attributes, Prob_Variable):
+            if Lp_Attributes.__module__ != self.__module__:
+                raise TypeError("Cannot add Prob_Variable %s of interface Prob_Type %s to lp_model of Prob_Type %s." % (
+                    Lp_Attributes, Lp_Attributes.__module__, self.__module__))
+            self.Add_Variable_Prob(Lp_Attributes)
+        elif isinstance(Lp_Attributes, Prob_Constraint):
+            if Lp_Attributes.__module__ != self.__module__:
+                raise TypeError("Cannot add Prob_Constraint %s of interface Prob_Type %s to lp_model of Prob_Type %s." % (
+                    Lp_Attributes, Lp_Attributes.__module__, self.__module__))
+            self.Constraint_Adder(Lp_Attributes)
+        elif isinstance(Lp_Attributes, Prob_Objective):
+            if Lp_Attributes.__module__ != self.__module__:
+                raise TypeError("Cannot set Prob_Objective %s of interface Prob_Type %s to lp_model of Prob_Type %s." % (
+                    Lp_Attributes, Lp_Attributes.__module__, self.__module__))
+            self.Objective_Obj = Lp_Attributes
+        else:
+            raise TypeError("Cannot add %s. It is neither a Prob_Variable, Prob_Constraint, or Prob_Objective." % Lp_Attributes)
+
+    def remove(self, Lp_Attributes):
+        """Remove LP_Vars and _Constraints_.
+
+        Parameters
+        ----------
+        Lp_Attributes : iterable, str, Prob_Variable, Prob_Constraint
+            Either an iterable containing LP_Vars and _Constraints_ to be removed from the lp_model or a single variable or contstraint (or their names).
+
+        Returns
+        -------
+        None
+        """
+        if isinstance(Lp_Attributes, str):
+            try:
+                variable = self.LP_Vars[Lp_Attributes]
+                self._Variable_Remove(variable)
+            except KeyError:
+                try:
+                    constraint = self._Constraints_[Lp_Attributes]
+                    self.Constraint_Remove_funct(constraint)
+                except KeyError:
+                    raise LookupError(
+                        "%s is neither a variable nor a constraint in the current solver instance." % Lp_Attributes)
+        elif isinstance(Lp_Attributes, Prob_Variable):
+            self._Variable_Remove(Lp_Attributes)
+        elif isinstance(Lp_Attributes, Prob_Constraint):
+            self.Constraint_Remove_funct(Lp_Attributes)
+        elif isinstance(Lp_Attributes, collections.Iterable):
+            Elementent_types = set((Element.__class__ for Element in Lp_Attributes))
+            if len(Elementent_types) == 1:
+                Elementent_type = Elementent_types.pop()
+                if issubclass(Elementent_type, Prob_Variable):
+                    self.Remove_Variables_Prob(Lp_Attributes)
+                elif issubclass(Elementent_type, Prob_Constraint):
+                    self.Constraints_Remover(Lp_Attributes)
+                else:
+                    raise TypeError("Cannot remove %s. It is neither a variable nor a constraint." % Lp_Attributes)
+            else:
+                for Element in Lp_Attributes:
+                    self.remove(Element)
+        elif isinstance(Lp_Attributes, Prob_Objective):
+            raise TypeError(
+                "Cannot remove Objective_Obj %s. Use lp_model.Objective_Obj = Prob_Objective(...) to change the current Objective_Obj." % Lp_Attributes)
+        else:
+            raise TypeError(
+                "Cannot remove %s. It neither a variable or constraint." % Lp_Attributes)
