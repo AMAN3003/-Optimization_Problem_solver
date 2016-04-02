@@ -233,3 +233,49 @@ class Prob_Variable(sympy.Symbol):
 
 
 
+class Optimized_Express(object):
+    """ its is the abstract / base class for Prob_Objective and Prob_Constraint."""
+
+    @classmethod
+    def Variables_Substituter(cls, LP_Express, lp_model=None, **kwargs):
+        """this Substitutes LP_Vars in LP_Express with LP_Vars of the appropriate interface Prob_Type.
+        Attributes
+        ----------
+        LP_Express: it contains Prob_Constraint, Prob_Objective etc
+            An optimization LP_Express used in the problems
+        LP_Problem: Prob_Model or None, optional
+            a optimization lp_model 
+        """
+        interface = sys.modules[cls.__module__]
+        Vars_Substitutes_Dict = dict()
+        for variable in LP_Express.LP_Vars:
+            if lp_model is not None and variable.name in lp_model.LP_Vars:
+                Vars_Substitutes_Dict[variable] = lp_model.LP_Vars[variable.name]
+            else:
+                Vars_Substitutes_Dict[variable] = interface.Prob_Variable.Funct_Cloning(variable)
+        Adjust_Express = LP_Express.LP_Express.xreplace(Vars_Substitutes_Dict)
+        return Adjust_Express
+
+    def __init__(self, LP_Express, name=None, LP_Problem=None, sloppy=False, *args, **kwargs):
+        # Ensure that name is str and not binary of unicode - some solvers only support string Prob_Type in Python 2.
+        if six.PY2 and name is not None:
+            name = str(name)
+
+        super(Optimized_Express, self).__init__(*args, **kwargs)
+        if sloppy:
+            self._LP_Express = LP_Express
+        else:
+            self._LP_Express = self.LP_Canonical_form(LP_Express)
+        if name is None:
+            self.name = str(uuid.uuid1())
+        else:
+            self.name = name
+        self._LP_Problem = LP_Problem
+
+    @property
+    def LP_Problem(self):
+        return self._LP_Problem
+
+    @LP_Problem.setter
+    def LP_Problem(self, Var_Value):
+        self._LP_Problem = Var_Value
