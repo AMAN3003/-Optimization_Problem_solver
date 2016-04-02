@@ -26,3 +26,8 @@ This is future python software which provides generic interface to a series of o
     lp_model.add([c1, c2, c3])
     Lp_Status=lp_model.optimize_funct()
     print "status:", lp_model.Lp_Status
+
+### Contributors ###
+####(Owner) Aman Omkar (Github - [AMAN3003](https://github.com/AMAN3003)  Bitbucket -[A-M-A-N](https://bitbucket.org/A-M-A-N/) )####
+
+####(Sub Owner) Prince Raheja (Github - [princeraheja143](https://github.com/princeraheja143)        Bitbucket - [prince_raheja](https://bitbucket.org/prince_raheja/))
