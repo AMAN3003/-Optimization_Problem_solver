@@ -279,3 +279,75 @@ class Optimized_Express(object):
     @LP_Problem.setter
     def LP_Problem(self, Var_Value):
         self._LP_Problem = Var_Value
+
+    def _expression_getter(self):
+        return self._LP_Express
+
+    @property
+    def LP_Express(self):
+        """The mathematical representation LP_Express defines the Objective_Obj/constraint."""
+        return self._expression_getter()
+
+    @property
+    def LP_Vars(self):
+        """Variables in constraint."""
+        return self.LP_Express.atoms(sympy.Symbol)
+
+    def LP_Canonical_form(self, LP_Express):
+        if isinstance(LP_Express, float):
+            return sympy.RealNumber(LP_Express)
+        elif isinstance(LP_Express, int):
+            return sympy.Integer(LP_Express)
+        else:
+            #LP_Express = LP_Express.expand() This would canonicalize in best way, but is quite slow
+            return LP_Express
+
+    @property
+    def Check_Linear(self):
+        """Returns True if and only if the constraint is linear """
+        _dict_coeff = self.LP_Express.as_coefficients_dict()
+        if all((len(key.free_symbols)<2 and (key.is_Add or key.is_Mul or key.is_Atom) for key in _dict_coeff.keys())):
+            return True
+        else:
+            try:
+                poly = self.LP_Express.as_poly(*self.LP_Vars)
+            except sympy.PolynomialError:
+                poly = None
+            if poly is not None:
+                return poly.is_linear
+            else:
+                return False
+
+    @property
+    def Check_Quadratic(self):
+        """Returns True if and only if constraint is quadratic ."""
+        if self.LP_Express.is_Atom:
+            return False
+        if all((len(key.free_symbols)<2 and (key.is_Add or key.is_Mul or key.is_Atom)
+                for key in self.LP_Express.as_coefficients_dict().keys())):
+            return False
+        try:
+            if self.LP_Express.is_Add:
+                express_terms = self.LP_Express.args
+                is_quad = False
+                for term_val in express_terms:
+                    if len(term_val.free_symbols) > 2:
+                        return False
+                    if term_val.is_Pow:
+                        if not term_val.args[1].is_Number or term_val.args[1] > 2:
+                            return False
+                        else:
+                            is_quad = True
+                    elif term_val.is_Mul:
+                        if len(term_val.free_symbols) == 2:
+                            is_quad = True
+                        if term_val.args[1].is_Pow:
+                            if not term_val.args[1].args[1].is_Number or term_val.args[1].args[1] > 2:
+                                return False
+                            else:
+                                is_quad = True
+                return is_quad
+            else:
+                return self.LP_Express.as_poly(*self.LP_Vars).is_quadratic
+        except sympy.PolynomialError:
+            return False
