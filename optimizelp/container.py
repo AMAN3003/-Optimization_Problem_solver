@@ -107,3 +107,54 @@ class Container(object):
 
     def From_Keys(self, keys):
         return self.__class__([self.__getitem__(key) for key in keys])
+
+    def get(self, key, default=None):
+        try:
+            return self.__getitem__(key)
+        except (KeyError, IndexError) as e:
+            self.Re_Indexor()
+            try:
+                return self.__getitem__(key)
+            except (KeyError, IndexError) as e:
+                return default
+
+    def clear(self):
+        self.List_Objects = list()
+        self.Dict_Val = dict()
+
+    def has_key(self, key):
+        if key in self.Dict_Val:
+            return True
+
+    def append(self, Var_Value):
+        self.has_Name_Attribute(Var_Value)
+        name = Var_Value.name
+        if name in self.Dict_Val:
+            raise Exception("Container '%s' already contains an object with name '%s'." % (self, Var_Value.name))
+        self.List_Objects.append(Var_Value)
+        self.Dict_Val[Var_Value.name] = Var_Value
+
+    def extend(self, values):
+        for Var_Value in values:
+            self.has_Name_Attribute(Var_Value)
+            if Var_Value.name in self.Dict_Val:
+                raise Exception("Container '%s' already contains an object with name '%s'." % (self, Var_Value.name))
+        self.List_Objects.extend(values)
+        self.Dict_Val.update(dict([(Var_Value.name, Var_Value) for Var_Value in values]))
+
+    def __getattr__(self, name):
+        try:
+            return self.__getitem__(name)
+        except KeyError:
+            raise AttributeError("'%s' object has no attribute %s" % (self, name))
+
+    def __getstate__(self):
+        return self.List_Objects
+
+    def __setstate__(self, obj_list):
+        self.__init__(obj_list)
+
+    def __dir__(self):
+        attributes = list(self.__class__._Dict_Val__.keys())
+        attributes.extend(self.List_Names)
+        return attributes
