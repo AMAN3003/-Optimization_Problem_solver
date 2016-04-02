@@ -1,3 +1,4 @@
+
 """Utility functions for optimizelp."""
 
 import logging
@@ -59,3 +60,70 @@ def Funct_solver_glpsol(glp_prob):
                 print(line)
                 raise Exception("exceptons ohhh..")
     return solution
+
+
+def cplex_to_glpk(path):
+    """This function Reads cplex file and return the glpk LP_Problem of the cplex file.
+
+    Returns
+    -------
+    glp_prob
+        it is a glpk problems as returned by glp_create_prob
+    """
+    from swiglpk import glp_create_prob, glp_read_lp
+
+    LP_Problem = glp_create_prob()
+    glp_read_lp(LP_Problem, None, path)
+    return LP_Problem
+
+
+
+def Available_Solver_lists():
+    """Determine available solver interfaces in the system.
+
+    Returns
+    -------
+    dict
+        A dictionary like {'GLPK': True, 'GUROBI': False,etc}
+    """
+    Solvers_Avail = dict(GUROBI=False, GLPK=False, MOSEK=False, CPLEX=False)
+    try:
+        import gurobipy
+
+        Solvers_Avail['GUROBI'] = True
+        log.debug('Gurobi python solver found at location location %s' % os.path.dirname(gurobipy.__file__))
+    except:
+        log.debug('Gurobi python solver is  not available in the system.')
+    try:
+        import swiglpk
+
+        Solvers_Avail['GLPK'] = True
+        log.debug('GLPK python Solver interfaces found at location %s' % os.path.dirname(swiglpk.__file__))
+    except:
+        log.debug('GLPK python Solver interfaces not available in the system.')
+    try:
+        import mosek
+
+        Solvers_Avail['MOSEK'] = True
+        log.debug('Mosek python Solver interfaces found at location %s' % os.path.dirname(mosek.__file__))
+    except:
+        log.debug('Mosek python Solver interfaces not available in the system.')
+    try:
+        import cplex
+
+        Solvers_Avail['CPLEX'] = True
+        log.debug('CPLEX python Solver interfaces found at location %s' % os.path.dirname(cplex.__file__))
+    except:
+        log.debug('CPLEX python Solver interfaces not available in the system.')
+    return Solvers_Avail
+
+
+if __name__ == '__main__':
+    from swiglpk import glp_create_prob, glp_read_lp, glp_get_num_rows
+
+    LP_Problem = glp_create_prob()
+    glp_read_lp(LP_Problem, None, "../tests/data/lp_model.lp")
+    print("abcgdhh", glp_get_num_rows(LP_Problem))
+    solution = Funct_solver_glpsol(LP_Problem)
+    print(solution['R_Biomass_Ecoli_core_w_GAM'])
+        
