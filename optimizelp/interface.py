@@ -131,3 +131,29 @@ class Prob_Variable(sympy.Symbol):
         self.Valid_Upper_Bound(Prob_Type, self.Up_bound, name)
         self._Probtype = Prob_Type
         self.LP_Problem = LP_Problem
+
+    @property
+    def Lower_Bound(self):
+        return self.Low_bound
+
+    @Lower_Bound.setter
+    def Lower_Bound(self, Var_Value):
+        if hasattr(self, 'Upper_Bound') and self.Upper_Bound is not None and Var_Value is not None and Var_Value > self.Upper_Bound:
+            raise ValueError(
+                'the lower bound given %g is greater than the upper bound %g of variable %s.' % (
+                    Var_Value, self.Upper_Bound, self))
+        self.Valid_Lower_Bound(self.Prob_Type, Var_Value, self.name)
+        self.Low_bound = Var_Value
+
+    @property
+    def Upper_Bound(self):
+        return self.Up_bound
+
+    @Upper_Bound.setter
+    def Upper_Bound(self, Var_Value):
+        if hasattr(self, 'Lower_Bound') and self.Lower_Bound is not None and Var_Value is not None and Var_Value < self.Lower_Bound:
+            raise ValueError(
+                'The upper bound given %g is smaller than the lower bound %g of variable.it cannot be possible %s.' % (
+                    Var_Value, self.Lower_Bound, self))
+        self.Valid_Upper_Bound(self.Prob_Type, Var_Value, self.name)
+        self.Up_bound = Var_Value
