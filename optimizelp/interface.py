@@ -636,3 +636,75 @@ class Prob_Model(object):
             new_model.Objective_Obj = interface.Prob_Objective.Funct_Cloning(lp_model.Objective_Obj, lp_model=new_model)
         new_model.configuration = interface.Prob_Configure.Funct_Cloning(lp_model.configuration, LP_Problem=new_model)
         return new_model
+
+    def __init__(self, name=None, Objective_Obj=None, LP_Vars=None, _Constraints_=None, *args, **kwargs):
+        super(Prob_Model, self).__init__(*args, **kwargs)
+        self.objective_var = Objective_Obj
+        self._LP_Vars = Container()
+        self._constraints = Container()
+        self.Vars_To_Constr_Map = dict()
+        self._status = None
+        self.name = name
+        if LP_Vars is not None:
+            self.add(LP_Vars)
+        if _Constraints_ is not None:
+            self.add(_Constraints_)
+
+    @property
+    def interface(self):
+        return sys.modules[self.__module__]
+
+    @property
+    def Objective_Obj(self):
+        return self.objective_var
+
+    @Objective_Obj.setter
+    def Objective_Obj(self, Var_Value):
+        try:
+            for atom in Var_Value.LP_Express.atoms(sympy.Symbol):
+                if isinstance(atom, Prob_Variable) and (atom.LP_Problem is None or atom.LP_Problem != self):
+                    self.Add_Variable_Prob(atom)
+        except AttributeError as e:
+            if isinstance(Var_Value.LP_Express, six.types.FunctionType) or isinstance(Var_Value.LP_Express, float):
+                pass
+            else:
+                raise AttributeError(e)
+        self.objective_var = Var_Value
+        self.objective_var.LP_Problem = self
+
+    @property
+    def LP_Vars(self):
+        return self._LP_Vars
+
+    @property
+    def _Constraints_(self):
+        return self._constraints
+
+    @property
+    def Lp_Status(self):
+        return self._status
+
+    @property
+    def Primal_Val(self):
+        return collections.OrderedDict([(variable.name, variable.Primal_Prop) for variable in self.LP_Vars])
+
+    @property
+    def Cost_Reducer(self):
+        return collections.OrderedDict([(variable.name, variable.Dual_Prop) for variable in self.LP_Vars])
+
+    @property
+    def Dual_Val(self):
+        return collections.OrderedDict([(constraint.name, constraint.Primal_Prop) for constraint in self.constraint])
+
+    @property
+    def Shadow_Pricing(self):
+        return collections.OrderedDict([(constraint.name, constraint.Dual_Prop) for constraint in self.constraint])
+
+    def __str__(self):
+        return '\n'.join((
+            str(self.Objective_Obj),
+            "subject to",
+            '\n'.join([str(constr) for constr in self._Constraints_]),
+            'Bounds',
+            '\n'.join([str(var) for var in self.LP_Vars])
+        ))
