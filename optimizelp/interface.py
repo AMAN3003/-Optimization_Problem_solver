@@ -397,3 +397,41 @@ class Prob_Constraint(Optimized_Express):
         A reference to the optimization lp_model the variable belongs to.
     """
 
+    _Indi_Constr_Support = True
+
+    @classmethod
+    def _check_Indi_Var_Validity(cls, variable):
+        if variable is not None and not cls._Indi_Constr_Support:
+            raise Indi_Constr_No_Support('the given Solver interface %s is not supporting indicator _Constraints_' % cls.__module__)
+        if variable is not None and variable.Prob_Type != 'binary':
+            raise ValueError('Provided indicator variable %s is not binary.' % variable)
+
+    @staticmethod
+    def _Check_Valid_Var_Active(Var_Active):
+        if Var_Active != 0 and Var_Active != 1:
+            raise ValueError('Provided Var_Active argument %s needs to be either 1 or 0' % Var_Active)
+
+    @classmethod
+    def Funct_Cloning(cls, constraint, lp_model=None, **kwargs):
+        return cls(cls.Variables_Substituter(constraint, lp_model=lp_model), Lower_Bound=constraint.Lower_Bound, Upper_Bound=constraint.Upper_Bound,
+                   Var_Indicator=constraint.Var_Indicator, Var_Active=constraint.Var_Active,
+                   name=constraint.name, sloppy=True, **kwargs)
+
+    def __init__(self, LP_Express, Lower_Bound=None, Upper_Bound=None, Var_Indicator=None, Var_Active=1, *args, **kwargs):
+        self.Lower_Bound = Lower_Bound
+        self.Upper_Bound = Upper_Bound
+        self._check_Indi_Var_Validity(Var_Indicator)
+        self._Check_Valid_Var_Active(Var_Active)
+        self._Var_Indicator = Var_Indicator
+        self._Var_Active = Var_Active
+        super(Prob_Constraint, self).__init__(LP_Express, *args, **kwargs)
+
+    @property
+    def Var_Indicator(self):
+        return self._Var_Indicator
+
+    @Var_Indicator.setter
+    def Var_Indicator(self, Var_Value):
+        self._check_Indi_Var_Validity(Var_Value)
+        self._Var_Indicator = Var_Value
+
