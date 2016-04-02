@@ -576,3 +576,63 @@ class Prob_Configure(object):
     @Times_Up.setter
     def Times_Up(self):
         raise NotImplementedError
+
+
+class MathProgConfiguration(Prob_Configure):
+    def __init__(self, *args, **kwargs):
+        super(MathProgConfiguration, self).__init__(*args, **kwargs)
+
+    @property
+    def Presolve_Prop(self):
+        raise NotImplementedError
+
+    @Presolve_Prop.setter
+    def Presolve_Prop(self, Var_Value):
+        raise NotImplementedError
+
+
+class EvolutionOptimizedConfiguration(Prob_Configure):
+    """Heuristic Optimization is the future optimization to be used"""
+
+    def __init__(self, *args, **kwargs):
+        super(EvolutionOptimizedConfiguration, self).__init__(*args, **kwargs)
+
+
+class Prob_Model(object):
+    """Optimization LP_Problem.
+
+    Attributes
+    ----------
+    Objective_Obj: str
+        The Objective_Obj function.
+    name: str, optional
+        The name of the optimization LP_Problem.
+    LP_Vars: Container, read-only
+        Contains the LP_Vars of the optimization LP_Problem.
+        The keys are the variable names and values are the actual LP_Vars.
+    _Constraints_: Container, read-only
+         Contains the LP_Vars of the optimization LP_Problem.
+         The keys are the constraint names and values are the actual _Constraints_.
+    Lp_Status: str, read-only
+        The Lp_Status of the optimization LP_Problem.
+
+    Examples
+    --------
+
+
+    """
+
+    @classmethod
+    def Funct_Cloning(cls, lp_model):
+        interface = sys.modules[cls.__module__]
+        new_model = cls()
+        for variable in lp_model.LP_Vars:
+            new_variable = interface.Prob_Variable.Funct_Cloning(variable)
+            new_model.Add_Variable_Prob(new_variable)
+        for constraint in lp_model._Constraints_:
+            new_constraint = interface.Prob_Constraint.Funct_Cloning(constraint, lp_model=new_model)
+            new_model.Constraint_Adder(new_constraint)
+        if lp_model.Objective_Obj is not None:
+            new_model.Objective_Obj = interface.Prob_Objective.Funct_Cloning(lp_model.Objective_Obj, lp_model=new_model)
+        new_model.configuration = interface.Prob_Configure.Funct_Cloning(lp_model.configuration, LP_Problem=new_model)
+        return new_model
