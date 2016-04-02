@@ -486,3 +486,57 @@ class Prob_Constraint(Optimized_Express):
     @property
     def Dual_Prop(self):
         return None
+
+
+class Prob_Objective(Optimized_Express):
+    """Prob_Objective function. used to make the Objective_Obj function
+
+    Attributes
+    ----------
+    LP_Express: sympy
+        The mathematical LP_Express defining the Objective_Obj of the problems
+    name: str, optional
+        The name of the constraint which is being maked as objectives
+    Max_Or_Min_type: 'max' or 'min'
+        The optimization type whether max or min
+    Var_Value: float, read-only
+        The current Objective_Obj Var_Value.
+    LP_Problem: solver
+        The low-level solver object for the problems
+
+    """
+
+    @classmethod
+    def Funct_Cloning(cls, Objective_Obj, lp_model=None, **kwargs):
+        return cls(cls.Variables_Substituter(Objective_Obj, lp_model=lp_model), name=Objective_Obj.name,
+                   Max_Or_Min_type=Objective_Obj.Max_Or_Min_type, sloppy=True, **kwargs)
+
+    def __init__(self, LP_Express, Var_Value=None, Max_Or_Min_type='max', *args, **kwargs):
+        self._value = Var_Value
+        self._Max_Or_Min_type = Max_Or_Min_type
+        super(Prob_Objective, self).__init__(LP_Express, *args, **kwargs)
+
+    @property
+    def Var_Value(self):
+        return self._value
+
+    def __str__(self):
+        return {'max': 'Maximize', 'min': 'Minimize'}[self.Max_Or_Min_type] + '\n' + str(self.LP_Express)
+        # return ' '.join((self.Max_Or_Min_type, str(self.LP_Express)))
+
+    def LP_Canonical_form(self, LP_Express):
+        """For example, changes x + y to canonical form representation 1.*x + 1.*y"""
+        LP_Express = super(Prob_Objective, self).LP_Canonical_form(LP_Express)
+        LP_Express *= 1.
+        return LP_Express
+
+    @property
+    def Max_Or_Min_type(self):
+        """The Max_Or_Min_type of optimization. Either 'min' or 'max'."""
+        return self._Max_Or_Min_type
+
+    @Max_Or_Min_type.setter
+    def Max_Or_Min_type(self, Var_Value):
+        if Var_Value not in ['max', 'min']:
+            raise ValueError("Provided optimization Max_Or_Min_type %s is neither 'min' or 'max'." % Var_Value)
+        self._Max_Or_Min_type = Var_Value
