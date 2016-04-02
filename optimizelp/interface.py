@@ -351,3 +351,49 @@ class Optimized_Express(object):
                 return self.LP_Express.as_poly(*self.LP_Vars).is_quadratic
         except sympy.PolynomialError:
             return False
+
+    def __iadd__(self, Other_Val):
+        self._LP_Express += Other_Val
+        # self.LP_Express = sympy.Add._from_args((self.LP_Express, Other_Val))
+        return self
+
+    def __isub__(self, Other_Val):
+        self._LP_Express -= Other_Val
+        return self
+
+    def __imul__(self, Other_Val):
+        self._LP_Express *= Other_Val
+        return self
+
+    def __idiv__(self, Other_Val):
+        self._LP_Express /= Other_Val
+        return self
+
+    def __itruediv__(self, Other_Val):
+        self._LP_Express /= Other_Val
+        return self
+
+
+class Prob_Constraint(Optimized_Express):
+    """Optimization constraint inhertited from the expression Class.
+
+    This Class uses sympy expression and wraps it and extend it with optimization specific parameters and function.
+
+    Parameters
+    ----------
+    LP_Express: sympy
+        The mathematical LP_Express of sympy with the _Constraints_ 
+    name: str, optional
+        The problem constraint's name.
+    Lower_Bound: float or None, optional
+        The lower bound, if None then -inf.
+    Upper_Bound: float or None, optional
+        The upper bound, if None then inf.
+    Var_Indicator: Prob_Variable
+        The indicator variable (needs to be binary).
+    Var_Active: 0 or 1 (default 0)
+        When the constraint should
+    LP_Problem: Prob_Model or None, optional
+        A reference to the optimization lp_model the variable belongs to.
+    """
+
