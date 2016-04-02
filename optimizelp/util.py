@@ -125,5 +125,5 @@ if __name__ == '__main__':
     glp_read_lp(LP_Problem, None, "../tests/data/lp_model.lp")
     print("abcgdhh", glp_get_num_rows(LP_Problem))
     solution = Funct_solver_glpsol(LP_Problem)
-    print(solution['R_Biomass_Ecoli_core_w_GAM'])
+    print(solution['solver_interfaces_working_example'])
         
