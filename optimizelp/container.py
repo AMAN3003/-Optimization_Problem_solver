@@ -70,3 +70,40 @@ class Container(object):
                 except KeyError:
                     raise KeyError("%s does not contain an object with name %s" % (self, key))
             self.List_Objects.__setitem__(index, Var_Value)
+
+    def __delitem__(self, key):
+        try:
+            item = self.List_Objects.__getitem__(key)
+            self.List_Objects.__delitem__(key)
+            self.Dict_Val.__delitem__(item.name)
+        except TypeError:
+            try:
+                item = self.Dict_Val.__getitem__(key)
+                index = self.List_Names.index(item.name)
+                self.Dict_Val.__delitem__(key)
+            except KeyError:
+                self.Re_Indexor()
+                try:
+                    self.Dict_Val.__delitem__(key)
+                except KeyError:
+                    raise KeyError("%s does not contain an object with name %s" % (self, key))
+            self.List_Objects.__delitem__(index)
+
+    def Iter_Keys(self):
+        return self.List_Names.__iter__()
+
+    def keys(self):
+        return list(self.Iter_Keys())
+
+    def Iter_Values(self):
+        return self.List_Objects.__iter__()
+
+    def values(self):
+        return self.List_Objects
+
+    def iteritems(self):
+        for Element in self.List_Objects:
+            yield Element.name, Element
+
+    def From_Keys(self, keys):
+        return self.__class__([self.__getitem__(key) for key in keys])
