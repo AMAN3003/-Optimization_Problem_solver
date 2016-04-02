@@ -540,3 +540,39 @@ class Prob_Objective(Optimized_Express):
         if Var_Value not in ['max', 'min']:
             raise ValueError("Provided optimization Max_Or_Min_type %s is neither 'min' or 'max'." % Var_Value)
         self._Max_Or_Min_type = Var_Value
+
+
+class Prob_Configure(object):
+    """Optimization solver configuration class used to configure the solvers."""
+
+    @classmethod
+    def Funct_Cloning(cls, __config, LP_Problem=None, **kwargs):
+        _Properties = (k for k, v in inspect.getmembers(cls, _predicate=inspect.isdatadescriptor) if not k.startswith('__'))
+        parameters = {property: getattr(__config, property) for property in _Properties if hasattr(__config, property)}
+        return cls(LP_Problem=LP_Problem, **parameters)
+
+    def __init__(self, LP_Problem=None, *args, **kwargs):
+        self.LP_Problem = LP_Problem
+
+    @property
+    def Verbosity_Level(self):
+        """Verbosity level.
+
+        0: no output
+        1: error and warning messages only
+        2: normal output
+        4: full output
+        """
+        raise NotImplementedError
+
+    @Verbosity_Level.setter
+    def Verbosity_Level(self, Var_Value):
+        raise NotImplementedError
+
+    @property
+    def Times_Up(self):
+        raise NotImplementedError
+
+    @Times_Up.setter
+    def Times_Up(self):
+        raise NotImplementedError
