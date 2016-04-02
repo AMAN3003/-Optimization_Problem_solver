@@ -157,3 +157,79 @@ class Prob_Variable(sympy.Symbol):
                     Var_Value, self.Lower_Bound, self))
         self.Valid_Upper_Bound(self.Prob_Type, Var_Value, self.name)
         self.Up_bound = Var_Value
+
+    @property
+    def Prob_Type(self):
+        return self._Probtype
+
+    @Prob_Type.setter
+    def Prob_Type(self, Var_Value):
+        if Var_Value == 'continuous':
+            self._Probtype = Var_Value
+        elif Var_Value == 'integer':
+            self._Probtype = Var_Value
+            try:
+                self.Lower_Bound = round(self.Lower_Bound)
+            except TypeError:
+                pass
+            try:
+                self.Upper_Bound = round(self.Upper_Bound)
+            except TypeError:
+                pass
+        elif Var_Value == 'binary':
+            self._Probtype = Var_Value
+            self.Low_bound = 0
+            self.Up_bound = 1
+        else:
+            raise ValueError(
+                "'%s' is not a valid variable Prob_Type. Choose a valid type between 'continuous, 'integer', or 'binary'." % Var_Value)
+
+    @property
+    def Primal_Prop(self):
+        return None
+
+    @property
+    def Dual_Prop(self):
+        return None
+
+    def __str__(self):
+        """Representation of variable in string format.
+
+        Examples
+        --------
+        >>> Prob_Variable('x', Lower_Bound=-10, Upper_Bound=10)
+        '-10 <= x <= 10'
+        """
+        if self.Lower_Bound is not None:
+            lb_str = str(self.Lower_Bound) + " <= "
+        else:
+            lb_str = ""
+        if self.Upper_Bound is not None:
+            ub_str = " <= " + str(self.Upper_Bound)
+        else:
+            ub_str = ""
+        return ''.join((lb_str, super(Prob_Variable, self).__str__(), ub_str))
+
+    def __repr__(self):
+        """its is  exactly the same as __str__ for now."""
+        return self.__str__()
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+
+    def Make_Primal_Bound_Rounded(self, Primal_Prop, Tolerance_Val=1e-5):
+        if (self.Lower_Bound is None or Primal_Prop >= self.Lower_Bound) and (self.Upper_Bound is None or Primal_Prop <= self.Upper_Bound):
+            return Primal_Prop
+        else:
+            if (Primal_Prop <= self.Lower_Bound) and ((self.Lower_Bound - Primal_Prop) <= Tolerance_Val):
+                return self.Lower_Bound
+            elif (Primal_Prop >= self.Upper_Bound) and ((self.Upper_Bound - Primal_Prop) >= -Tolerance_Val):
+                return self.Upper_Bound
+            else:
+                raise AssertionError('The Primal_Prop Var_Value %s returned by the solver is out of bounds for variable %s (Lower_Bound=%s, Upper_Bound=%s)' % (Primal_Prop, self.name, self.Lower_Bound, self.Upper_Bound))
+
+
+
