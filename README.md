@@ -1,6 +1,6 @@
 # README #
 # optimizelp #
-This is python package which provides generic interface to a series of optimization tools. Currently supported solvers will be:          
+This is future python software which provides generic interface to a series of optimization tools. Currently supported solvers will be:          
 **Glpk AND Cplex**
 
 **optimizelp** will use sympy for problem formulation (problem constraints, problems objectives, problem variables, etc.). Adding interface to other optimization solvers is just simple sub-classing of the abstract interface and implementing the solver techniques for new solvers.
