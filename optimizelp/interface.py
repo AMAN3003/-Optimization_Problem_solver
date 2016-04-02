@@ -1,3 +1,5 @@
+
+# Creator aman omkar
 """Abstract solver interface definitions (:class:`Prob_Model`, :class:`Prob_Variable`,
 :class:`Prob_Constraint`, :class:`Prob_Objective`) intended to be subclassed and
 extended for individual solvers.
@@ -862,3 +864,43 @@ class Prob_Model(object):
                     raise LookupError("Prob_Constraint %s not in solver" % constraint)
                 else:
                     constraint.LP_Problem = None
+
+    def Constraint_Remove_funct(self, constraint):
+        self.Constraints_Remover([constraint])
+
+    def _set_linear_objective_term(self, variable, coefficient):
+        # TODO: make fast for the objectives with many terms
+        if variable in self.Objective_Obj.LP_Express.atoms(sympy.Symbol):
+            a = sympy.Wild('a', exclude=[variable])
+            (new_expression, map) = self.Objective_Obj.LP_Express.replace(lambda expr: expr.match(a*variable), lambda expr: coefficient*variable, simultaneous=False, map=True)
+            self.Objective_Obj.LP_Express = new_expression
+        else:
+            self.Objective_Obj.LP_Express = sympy.Add._from_args((self.Objective_Obj.LP_Express, sympy.Mul._from_args((sympy.RealNumber(coefficient), variable))))
+
+if __name__ == '__main__':
+    # Example 
+
+    x1 = Prob_Variable('x1', Lower_Bound=0)
+    x2 = Prob_Variable('x2', Lower_Bound=0)
+    x3 = Prob_Variable('x3', Lower_Bound=0)
+    c1 = Prob_Constraint(x1 + x2 + x3, Upper_Bound=100)
+    c2 = Prob_Constraint(10 * x1 + 4 * x2 + 5 * x3, Upper_Bound=600)
+    c3 = Prob_Constraint(2 * x1 + 2 * x2 + 6 * x3, Upper_Bound=300)
+    obj = Prob_Objective(10 * x1 + 6 * x2 + 4 * x3, Max_Or_Min_type='max')
+    lp_model = Prob_Model(name='Simple lp_model')
+    lp_model.Objective_Obj = obj
+    lp_model.add([c1, c2, c3])
+
+    try:
+        sol = lp_model.optimize_funct()
+    except NotImplementedError as e:
+        print(e)
+
+    print(lp_model)
+    print(lp_model.LP_Vars)
+
+    # lp_model.remove(x1)
+
+    import optlang
+
+    lp_model.interface = optlang.glpk_interface
