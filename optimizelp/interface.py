@@ -435,3 +435,54 @@ class Prob_Constraint(Optimized_Express):
         self._check_Indi_Var_Validity(Var_Value)
         self._Var_Indicator = Var_Value
 
+    @property
+    def Var_Active(self):
+        return self._Var_Active
+
+    @Var_Indicator.setter
+    def Var_Indicator(self, Var_Value):
+        self._Check_Valid_Var_Active(Var_Value)
+        self._Var_Active = Var_Value
+
+    def __str__(self):
+        if self.Lower_Bound is not None:
+            lhs = str(self.Lower_Bound) + ' <= '
+        else:
+            lhs = ''
+        if self.Upper_Bound is not None:
+            rhs = ' <= ' + str(self.Upper_Bound)
+        else:
+            rhs = ''
+        if self.Var_Indicator is not None:
+            lhs = self.Var_Indicator.name + ' = ' + str(self.Var_Active) + ' -> ' + lhs
+        return str(self.name) + ": " + lhs + self.LP_Express.__str__() + rhs
+
+    def LP_Canonical_form(self, LP_Express):
+        LP_Express = super(Prob_Constraint, self).LP_Canonical_form(LP_Express)
+        if LP_Express.is_Atom or LP_Express.is_Mul:
+            return LP_Express
+        Alone_Coeff = [arg for arg in LP_Express.args if arg.is_Number]
+        if not Alone_Coeff:
+            return LP_Express
+        assert len(Alone_Coeff) == 1
+        coeff = Alone_Coeff[0]
+        if self.Lower_Bound is None and self.Upper_Bound is None:
+            raise ValueError(
+                "%s cannot be shaped into canonical form if you are not giving lower or upper constraint bounds."
+                % LP_Express
+            )
+        else:
+            LP_Express = LP_Express - coeff
+            if self.Lower_Bound is not None:
+                self.Lower_Bound = self.Lower_Bound - coeff
+            if self.Upper_Bound is not None:
+                self.Upper_Bound = self.Upper_Bound - coeff
+        return LP_Express
+
+    @property
+    def Primal_Prop(self):
+        return None
+
+    @property
+    def Dual_Prop(self):
+        return None
