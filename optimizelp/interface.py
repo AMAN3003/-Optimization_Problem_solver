@@ -790,3 +790,75 @@ class Prob_Model(object):
         else:
             raise TypeError(
                 "Cannot remove %s. It neither a variable or constraint." % Lp_Attributes)
+
+    def optimize_funct(self):
+        """Solve the optimization LP_Problem.
+
+        Returns
+        -------
+        Lp_Status: str
+            Solution Lp_Status.
+        """
+        raise NotImplementedError(
+            "You're using the high level interface to optlang. Problems cannot be optimized in this mode. Choose from one of the solver specific interfaces.")
+
+    def Add_Variable_Prob(self, variable):
+        self.LP_Vars.append(variable)
+        self.Vars_To_Constr_Map[variable.name] = set([])
+        variable.LP_Problem = self
+
+        return variable
+
+    def Remove_Variables_Prob(self, LP_Vars):
+
+        for variable in LP_Vars:
+            try:
+                var = self.LP_Vars[variable.name]
+            except KeyError:
+                raise LookupError("Prob_Variable %s not in solver" % var)
+
+        Constr_Ids = set()
+        for variable in LP_Vars:
+            Constr_Ids.update(self.Vars_To_Constr_Map[variable.name])
+            del self.Vars_To_Constr_Map[variable.name]
+            variable.LP_Problem = None
+            del self.LP_Vars[variable.name]
+
+        replacements = dict([(variable, 0) for variable in LP_Vars])
+        for Constr__Id in Constr_Ids:
+            constraint = self._Constraints_[Constr__Id]
+            constraint._LP_Express = constraint.LP_Express.xreplace(replacements)
+
+        self.Objective_Obj._LP_Express = self.Objective_Obj.LP_Express.xreplace(replacements)
+
+    def _Variable_Remove(self, variable):
+        self.Remove_Variables_Prob([variable])
+
+    def Constraint_Adder(self, constraint, sloppy=False):
+        Constr__Id = constraint.name
+        if sloppy is False:
+            LP_Vars = constraint.LP_Vars
+            if constraint.Var_Indicator is not None:
+                LP_Vars.add(constraint.Var_Indicator)
+            for var in LP_Vars:
+                if var.LP_Problem is not self:
+                    self.Add_Variable_Prob(var)
+                try:
+                    self.Vars_To_Constr_Map[var.name].add(Constr__Id)
+                except KeyError:
+                    self.Vars_To_Constr_Map[var.name] = set([Constr__Id])
+        self._Constraints_.append(constraint)
+        constraint._LP_Problem = self
+
+    def Constraints_Remover(self, _Constraints_):
+        keys = [constraint.name for constraint in _Constraints_]
+        if len(_Constraints_) > 350:  # figure a best threshold till here
+            self._constraints = self._Constraints_.From_Keys(set(self._Constraints_.keys()).difference(set(keys)))
+        else:
+            for constraint in _Constraints_:
+                try:
+                    del self._Constraints_[constraint.name]
+                except KeyError:
+                    raise LookupError("Prob_Constraint %s not in solver" % constraint)
+                else:
+                    constraint.LP_Problem = None
