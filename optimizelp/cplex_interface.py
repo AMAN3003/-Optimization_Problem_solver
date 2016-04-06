@@ -659,3 +659,84 @@ class Prob_Model(interface.Prob_Model):
                     Var_Value.Max_Or_Min_type])
         self.LP_Problem.Objective_Obj.set_name(Var_Value.name)
         Var_Value.LP_Problem = self
+
+    @property
+    def Primal_Val(self):
+        if self.LP_Problem:
+            Primal_Val = collections.OrderedDict()
+            for variable, Primal_Prop in zip(self.LP_Vars, self.LP_Problem.solution.get_values()):
+                Primal_Val[variable.name] = variable.Make_Primal_Bound_Rounded(Primal_Prop)
+            return Primal_Val
+        else:
+            return None
+
+    @property
+    def Cost_Reducer(self):
+        if self.LP_Problem:
+            return collections.OrderedDict(
+                zip([variable.name for variable in self.LP_Vars], self.LP_Problem.solution.get_reduced_costs()))
+        else:
+            return None
+
+    @property
+    def Dual_Val(self):
+        if self.LP_Problem:
+            return collections.OrderedDict(
+                zip([constraint.name for constraint in self._Constraints_], self.LP_Problem.solution.get_activity_levels()))
+        else:
+            return None
+
+    @property
+    def Shadow_Pricing(self):
+        if self.LP_Problem:
+            return collections.OrderedDict(
+                zip([constraint.name for constraint in self._Constraints_], self.LP_Problem.solution.get_dual_values()))
+        else:
+            return None
+
+
+    def __str__(self):
+        Temporary_File = tempfile.mktemp(suffix=".lp")
+        self.LP_Problem.write(Temporary_File)
+        cplex_form = open(Temporary_File).read()
+        return cplex_form
+
+    def optimize_funct(self):
+        self.LP_Problem.solve()
+        cplex_status = self.LP_Problem.solution.get_status()
+        self._status = Cplex_to_status[cplex_status]
+        return self.Lp_Status
+
+    @staticmethod
+    def cplex_sensetosympy(eq_Sense, Translate=None):
+        if not Translate: Translate = {'E': '==', 'L': '<', 'G': '>'}
+        try:
+            return Translate[eq_Sense]
+        except KeyError as e:
+            raise Exception(' '.join(('Sense', eq_Sense, 'is not a proper relational operator, e.g. >, <, == etc.')))
+
+    def Add_Variable_Prob(self, variable):
+        super(Prob_Model, self).Add_Variable_Prob(variable)
+        if variable.Lower_Bound is None:
+            Lower_Bound = -cplex.infinity
+        else:
+            Lower_Bound = variable.Lower_Bound
+        if variable.Upper_Bound is None:
+            Upper_Bound = cplex.infinity
+        else:
+            Upper_Bound = variable.Upper_Bound
+        vtype = dICT_CPLEX_LPTYPE[variable.Prob_Type]
+        if vtype == 'C':  # because CPLEX by default set the problemtype to MILP 
+            self.LP_Problem.LP_Vars.add([0.], Lower_Bound=[Lower_Bound], Upper_Bound=[Upper_Bound], names=[variable.name])
+        else:
+            self.LP_Problem.LP_Vars.add([0.], Lower_Bound=[Lower_Bound], Upper_Bound=[Upper_Bound], types=[vtype], names=[variable.name])
+        variable.LP_Problem = self
+        return variable
+
+    def Remove_Variables_Prob(self, LP_Vars):
+        # do not call the parent method call to avoid hard variable removal from sympy expressions
+        self.LP_Problem.LP_Vars.delete([variable.name for variable in LP_Vars])
+        for variable in LP_Vars:
+            del self.Vars_To_Constr_Map[variable.name]
+            variable.LP_Problem = None
+            del self.LP_Vars[variable.name]
