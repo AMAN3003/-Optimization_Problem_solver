@@ -92,3 +92,42 @@ Cplex_to_status = {
     cplex.Cplex.solution.Lp_Status.unbounded: interface.Unbounded_Val,
     cplex.Cplex.solution.Lp_Status.relaxation_unbounded: interface.Unbounded_Val,
 }
+
+Linear_Programming_Methods = ["auto", "Primal_Prop", "Dual_Prop", "network", "barrier", "sifting", "concurrent"]
+
+Solution_type_target = ("auto", "convex", "local", "global")
+
+Methods_QP = ("auto", "Primal_Prop", "Dual_Prop", "network", "barrier")
+
+_CPLEX_LPTYPE_TO_LPTYPE = {'C': 'continuous', 'I': 'integer', 'B': 'binary'}
+# working for semi and semi continuous
+
+dICT_CPLEX_LPTYPE = dict(
+    [(val, key) for key, val in six.iteritems(_CPLEX_LPTYPE_TO_LPTYPE)]
+)
+
+
+def constraint_lb_ub_to_rhs_range_val(Lower_Bound, Upper_Bound):
+    """Helper function which is used by Prob_Constraint and Prob_Model"""
+    if Lower_Bound is None and Upper_Bound is None:
+        # FIX: use cplex.infinity to fix the upper and lowe bound problems
+        raise Exception(" Free constraint is not possible ...")
+    elif Lower_Bound is None:
+        eq_Sense = 'L'
+        rhs = float(Upper_Bound)
+        range_bound_value = 0.
+    elif Upper_Bound is None:
+        eq_Sense = 'G'
+        rhs = float(Lower_Bound)
+        range_bound_value = 0.
+    elif Lower_Bound == Upper_Bound:
+        eq_Sense = 'E'
+        rhs = float(Lower_Bound)
+        range_bound_value = 0.
+    elif Lower_Bound > Upper_Bound:
+        raise ValueError("Lower bound canot be larger than the upper bound.")
+    else:
+        eq_Sense = 'R'
+        rhs = float(Lower_Bound)
+        range_bound_value = float(Upper_Bound - Lower_Bound)
+    return eq_Sense, rhs, range_bound_value
