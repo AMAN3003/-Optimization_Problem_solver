@@ -131,3 +131,52 @@ def constraint_lb_ub_to_rhs_range_val(Lower_Bound, Upper_Bound):
         rhs = float(Lower_Bound)
         range_bound_value = float(Upper_Bound - Lower_Bound)
     return eq_Sense, rhs, range_bound_value
+
+
+class Prob_Variable(interface.Prob_Variable):
+    """CPLEX variable interface used for solving sympy expression to cplex expression"""
+
+    def __init__(self, name, *args, **kwargs):
+        super(Prob_Variable, self).__init__(name, **kwargs)
+
+    @interface.Prob_Variable.Lower_Bound.setter
+    def Lower_Bound(self, Var_Value):
+        super(Prob_Variable, self.__class__).Lower_Bound.fset(self, Var_Value)
+        if self.LP_Problem is not None:
+            self.LP_Problem.LP_Problem.LP_Vars.set_lower_bounds(self.name, Var_Value)
+
+    @interface.Prob_Variable.Upper_Bound.setter
+    def Upper_Bound(self, Var_Value):
+        super(Prob_Variable, self.__class__).Upper_Bound.fset(self, Var_Value)
+        if self.LP_Problem is not None:
+            self.LP_Problem.LP_Problem.LP_Vars.set_upper_bounds(self.name, Var_Value)
+
+    @interface.Prob_Variable.Prob_Type.setter
+    def Prob_Type(self, Var_Value):
+        if self.LP_Problem is not None:
+            try:
+                cplex_kind = dICT_CPLEX_LPTYPE[Var_Value]
+            except KeyError:
+                raise Exception("CPLEX is unable to deal with variable of Prob_Type %s. \
+                            only the following variables are supported:\n" +
+                                " ".join(dICT_CPLEX_LPTYPE.keys()))
+            self.LP_Problem.LP_Problem.LP_Vars.set_types(self.name, cplex_kind)
+        super(Prob_Variable, self).__setattr__('Prob_Type', Var_Value)
+
+
+    @property
+    def Primal_Prop(self):
+        if self.LP_Problem:
+            solver_primal = self.LP_Problem.LP_Problem.solution.get_values(self.name)
+            return self.Make_Primal_Bound_Rounded(solver_primal)
+        else:
+            return None
+
+    @property
+    def Dual_Prop(self):
+        if self.LP_Problem is not None:
+            if self.LP_Problem.LP_Problem.get_problem_type() != self.LP_Problem.LP_Problem.problem_type.LP: # cplex cannot determine reduced costs for MILP problems ...
+                return None
+            return self.LP_Problem.LP_Problem.solution.get_reduced_costs(self.name)
+        else:
+            return None
