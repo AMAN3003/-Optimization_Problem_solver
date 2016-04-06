@@ -180,3 +180,116 @@ class Prob_Variable(interface.Prob_Variable):
             return self.LP_Problem.LP_Problem.solution.get_reduced_costs(self.name)
         else:
             return None
+
+
+class Prob_Constraint(interface.Prob_Constraint):
+    """CPLEX solver interface to solve constraints using the cplex"""
+
+    _Indi_Constr_Support = True
+
+    def __init__(self, LP_Express, *args, **kwargs):
+        super(Prob_Constraint, self).__init__(LP_Express, *args, **kwargs)
+        if self.Upper_Bound is not None and self.Lower_Bound is not None and self.Lower_Bound > self.Upper_Bound:
+            raise ValueError(
+                " ohh eroors encountered Lower bound %f is larger than upper bound %f in constraint  %s" %
+                (self.Lower_Bound, self.Upper_Bound, self)
+            )
+
+
+    # TODO: need to implement LP_Express from solver structure for the cplex
+    def _expression_getter(self):
+        if self.LP_Problem is not None:
+            cplex_lp_problem = self.LP_Problem.LP_Problem
+            cplex_lp_row = cplex_lp_problem.linear_constraints.get_rows(self.name)
+            LP_Vars = self.LP_Problem.LP_Vars
+            LP_Express = sympy.Add._from_args([sympy.Mul._from_args((sympy.RealNumber(cplex_lp_row.val[i]), LP_Vars[ind])) for i, ind in enumerate(cplex_lp_row.ind)])
+            self._LP_Express = LP_Express
+        return self._LP_Express
+
+    def Coefficient_TO_LOWLEVEL_Setter(self, variables_coefficients_dict):
+        self_Name = self.name
+        if self.Check_Linear:
+            cplex_format_STANDARD = [(self_Name, variable.name, coefficient) for variable, coefficient in six.iteritems(variables_coefficients_dict)]
+            self.LP_Problem.LP_Problem.linear_constraints.set_coefficients(cplex_format_STANDARD)
+        else:
+            raise Exception('Coefficient_TO_LOWLEVEL_Setter works only with linear constraints are in the cplex interface.')
+
+    @property
+    def LP_Problem(self):
+        return self._LP_Problem
+
+    @LP_Problem.setter
+    def LP_Problem(self, Var_Value):
+        if Var_Value is None:
+            # Update LP_Express from solver instance for the last time 
+            self._expression_getter()
+            self._LP_Problem = None
+        else:
+            self._LP_Problem = Var_Value
+
+    @property
+    def Primal_Prop(self):
+        if self.LP_Problem is not None:
+            return self.LP_Problem.LP_Problem.solution.get_activity_levels(self.name)
+        else:
+            return None
+
+    @property
+    def Dual_Prop(self):
+        if self.LP_Problem is not None:
+            return self.LP_Problem.LP_Problem.solution.get_dual_values(self.name)
+        else:
+            return None
+
+    # TODO: add refactor to properties
+    def __setattr__(self, name, Var_Value):
+        try:
+            Previous_Name = self.name  
+        except AttributeError:
+            pass
+        super(Prob_Constraint, self).__setattr__(name, Var_Value)
+        if getattr(self, 'LP_Problem', None):
+
+            if name == 'name':
+                if self.Var_Indicator is not None:
+                    raise NotImplementedError("Unfortunately, in the CPLEX changing an indicator constraint's name is not possible")
+                else:
+                    # TODO:deal with quadratic _Constraints_
+                    self.LP_Problem.LP_Problem.linear_constraints.set_names(Previous_Name, Var_Value)
+
+            elif name == 'Lower_Bound' or name == 'Upper_Bound':
+                if self.Var_Indicator is not None:
+                    raise NotImplementedError("Unfortunately, in the CPLEX changing an indicator constraint's bounds is not supported")
+                if name == 'Lower_Bound':
+                    if Var_Value > self.Upper_Bound:
+                        raise ValueError(
+                            "Lower bound %f is larger than upper bound %f in constraint %s" %
+                            (Var_Value, self.Upper_Bound, self)
+                        )
+                    eq_Sense, rhs, range_bound_value = constraint_lb_ub_to_rhs_range_val(Var_Value, self.Upper_Bound)
+                elif name == 'Upper_Bound':
+                    if Var_Value < self.Lower_Bound:
+                        raise ValueError(
+                            "ohh this is error Upper bound %f is less than lower bound %f in constraint %s" %
+                            (Var_Value, self.Lower_Bound, self)
+                        )
+                    eq_Sense, rhs, range_bound_value = constraint_lb_ub_to_rhs_range_val(self.Lower_Bound, Var_Value)
+                if self.Check_Linear:
+                    self.LP_Problem.LP_Problem.linear_constraints.set_rhs(self.name, rhs)
+                    self.LP_Problem.LP_Problem.linear_constraints.set_senses(self.name, eq_Sense)
+                    self.LP_Problem.LP_Problem.linear_constraints.set_range_values(self.name, range_bound_value)
+
+            elif name == 'LP_Express':
+                pass
+
+    def __iadd__(self, Other_Val):
+        # if self.LP_Problem is not None:
+        #     self.LP_Problem._add_to_constraint(self.index, Other_Val)
+        if self.LP_Problem is not None:
+            problem_reference = self.LP_Problem
+            self.LP_Problem.Constraint_Remove_funct(self)
+            super(Prob_Constraint, self).__iadd__(Other_Val)
+            problem_reference.Constraint_Adder(self, sloppy=False)
+        else:
+            super(Prob_Constraint, self).__iadd__(Other_Val)
+        return self
