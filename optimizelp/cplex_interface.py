@@ -740,3 +740,110 @@ class Prob_Model(interface.Prob_Model):
             del self.Vars_To_Constr_Map[variable.name]
             variable.LP_Problem = None
             del self.LP_Vars[variable.name]
+
+    def Constraint_Adder(self, constraint, sloppy=False):
+        super(Prob_Model, self).Constraint_Adder(constraint, sloppy=sloppy)
+        constraint._LP_Problem = None
+        if constraint.Check_Linear:
+            if constraint.LP_Express.is_Add:
+                _dict_coeff = constraint.LP_Express.as_coefficients_dict()
+                indices = [var.name for var in _dict_coeff.keys()]
+                values = [float(val) for val in _dict_coeff.values()]
+            elif constraint.LP_Express.is_Mul:
+                variable = list(constraint.LP_Express.atoms(sympy.Symbol))[0]
+                indices = [variable.name]
+                values = [float(constraint.LP_Express.coeff(variable))]
+            elif constraint.LP_Express.is_Atom and constraint.LP_Express.is_Symbol:
+                indices = [constraint.LP_Express.name]
+                values = [1.]
+            elif constraint.LP_Express.is_Number:
+                indices = []
+                values = []
+            else:
+                raise ValueError('Something is wrong with constraint %s' % constraint)
+
+            eq_Sense, rhs, range_bound_value = constraint_lb_ub_to_rhs_range_val(constraint.Lower_Bound, constraint.Upper_Bound)
+            if constraint.Var_Indicator is None:
+                self.LP_Problem.linear_constraints.add(
+                    lin_expr=[cplex.SparsePair(ind=indices, val=values)], senses=[eq_Sense], rhs=[rhs],
+                    range_values=[range_bound_value], names=[constraint.name])
+            else:
+                if eq_Sense == 'R':
+                    raise ValueError('CPLEX does not support indicator constraint having upper and lower bound.')
+                else:
+                    self.LP_Problem.indicator_constraints.add(
+                        lin_expr=cplex.SparsePair(ind=indices, val=values), eq_Sense=eq_Sense, rhs=rhs, name=constraint.name,
+                        indvar=constraint.Var_Indicator.name, complemented=abs(constraint.Var_Active)-1)
+        # TODO: used to implement the quadratics constraints 
+        elif constraint.Check_Quadratic:
+            raise NotImplementedError('Quadratic _Constraints_ (like %s) are not supported yet.' % constraint)
+        else:
+            raise ValueError("CPLEX only supports linear or the quadratic constraint. %s this is not the required constraint " % constraint)
+        constraint.LP_Problem = self
+        return constraint
+
+    def Constraints_Remover(self, _Constraints_):
+        super(Prob_Model, self).Constraints_Remover(_Constraints_)
+        for constraint in _Constraints_:
+            if constraint.Check_Linear:
+                self.LP_Problem.linear_constraints.delete(constraint.name)
+            elif constraint.Check_Quadratic:
+                self.LP_Problem.quadratic_constraints.delete(constraint.name)
+
+    def _set_linear_objective_term(self, variable, coefficient):
+        self.LP_Problem.Objective_Obj.set_linear(variable.name, float(coefficient))
+
+    def quad_expression_getter(self, quadratic=None):
+        if quadratic is None:
+            try:
+                quadratic = self.LP_Problem.Objective_Obj.get_quadratic()
+            except IndexError:
+                return Zero
+        express_terms = []
+        for i, SparsePair_maker in enumerate(quadratic):
+            for j, val in zip(SparsePair_maker.ind, SparsePair_maker.val):
+                if i < j:
+                    express_terms.append(val*self.LP_Vars[i]*self.LP_Vars[j])
+                elif i == j:
+                    express_terms.append(0.5*val*self.LP_Vars[i]**2)
+                else:
+                    pass  # Only look at upper triangle for solving
+        return _unevaluated_Add(*express_terms)
+
+
+if __name__ == '__main__':
+
+    from optimizelp.cplex_interface import Prob_Model, Prob_Variable, Prob_Constraint, Prob_Objective
+
+    x1 = Prob_Variable('x1', Lower_Bound=0)
+    x2 = Prob_Variable('x2', Lower_Bound=0)
+    x3 = Prob_Variable('x3', Lower_Bound=0)
+    c1 = Prob_Constraint(x1 + x2 + x3, Upper_Bound=100, name='c1')
+    c2 = Prob_Constraint(10 * x1 + 4 * x2 + 5 * x3, Upper_Bound=600, name='c2')
+    c3 = Prob_Constraint(2 * x1 + 2 * x2 + 6 * x3, Upper_Bound=300, name='c3')
+    obj = Prob_Objective(10 * x1 + 6 * x2 + 4 * x3, Max_Or_Min_type='max')
+    lp_model = Prob_Model(name='Simple lp_model')
+    lp_model.Objective_Obj = obj
+    lp_model.add([c1, c2, c3])
+    print(lp_model)
+    Lp_Status = lp_model.optimize_funct()
+    print("Lp_Status:", lp_model.Lp_Status)
+    print("Objective_Obj Var_Value:", lp_model.Objective_Obj.Var_Value)
+
+    for var_name, var in lp_model.LP_Vars.items():
+        print(var_name, "=", var.Primal_Prop)
+
+
+        # from cplex import Cplex
+        # LP_Problem = Cplex()
+        # LP_Problem.read("../tests/data/lp_model.lp")
+
+        # solver = Prob_Model(LP_Problem=LP_Problem)
+        # print solver
+        # solver.optimize_funct()
+        # print solver.Objective_Obj.Var_Value
+        # solver.add(z)
+        # solver.add(constr)
+        # # print solver
+        # print solver.optimize_funct()
+        # print solver.Objective_Obj
