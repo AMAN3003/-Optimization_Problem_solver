@@ -485,3 +485,177 @@ class Prob_Configure(interface.MathProgConfiguration):
         method = getattr(self.LP_Problem.LP_Problem.parameters.qpmethod.values, Var_Value)
         self.LP_Problem.LP_Problem.parameters.qpmethod.set(method)
         self._qp_method = Var_Value
+
+
+class Prob_Model(interface.Prob_Model):
+    def __init__(self, LP_Problem=None, *args, **kwargs):
+
+        super(Prob_Model, self).__init__(*args, **kwargs)
+
+        if LP_Problem is None:
+            self.LP_Problem = cplex.Cplex()
+
+        elif isinstance(LP_Problem, cplex.Cplex):
+            self.LP_Problem = LP_Problem
+            zipped_var_args = zip(self.LP_Problem.LP_Vars.get_names(),
+                                  self.LP_Problem.LP_Vars.get_lower_bounds(),
+                                  self.LP_Problem.LP_Vars.get_upper_bounds()
+            )
+            for name, Lower_Bound, Upper_Bound in zipped_var_args:
+                var = Prob_Variable(name, Lower_Bound=Lower_Bound, Upper_Bound=Upper_Bound, LP_Problem=self)
+                super(Prob_Model, self).Add_Variable_Prob(var)  # To addtion of the variable to the glpk LP_Problem
+            zipped_constr_args = zip(self.LP_Problem.linear_constraints.get_names(),
+                                     self.LP_Problem.linear_constraints.get_rows(),
+                                     self.LP_Problem.linear_constraints.get_senses(),
+                                     self.LP_Problem.linear_constraints.get_rhs()
+
+            )
+            LP_Vars = self.LP_Vars
+            for name, row, eq_Sense, rhs in zipped_constr_args:
+                constraint_variables = [LP_Vars[i - 1] for i in row.ind]
+                lhs = _unevaluated_Add(*[val * LP_Vars[i - 1] for i, val in zip(row.ind, row.val)])
+                if isinstance(lhs, int):
+                    lhs = sympy.Integer(lhs)
+                elif isinstance(lhs, float):
+                    lhs = sympy.RealNumber(lhs)
+                if eq_Sense == 'E':
+                    constr = Prob_Constraint(lhs, Lower_Bound=rhs, Upper_Bound=rhs, name=name, LP_Problem=self)
+                elif eq_Sense == 'G':
+                    constr = Prob_Constraint(lhs, Lower_Bound=rhs, name=name, LP_Problem=self)
+                elif eq_Sense == 'L':
+                    constr = Prob_Constraint(lhs, Upper_Bound=rhs, name=name, LP_Problem=self)
+                elif eq_Sense == 'R':
+                    range_val = self.LP_Problem.linear_constraints.get_rhs(name)
+                    if range_val > 0:
+                        constr = Prob_Constraint(lhs, Lower_Bound=rhs, Upper_Bound=rhs + range_val, name=name, LP_Problem=self)
+                    else:
+                        constr = Prob_Constraint(lhs, Lower_Bound=rhs + range_val, Upper_Bound=rhs, name=name, LP_Problem=self)
+                else:
+                    raise Exception('%s is not a known constraint eq_Sense.' % eq_Sense)
+
+                for variable in constraint_variables:
+                    try:
+                        self.Vars_To_Constr_Map[variable.name].add(name)
+                    except KeyError:
+                        self.Vars_To_Constr_Map[variable.name] = set([name])
+
+                super(Prob_Model, self).Constraint_Adder(
+                    constr,
+                    sloppy=True
+                )
+            try:
+                objective_name = self.LP_Problem.Objective_Obj.get_name()
+            except cplex.exceptions.CplexSolverError as e:
+                if 'CPLEX Error  1219:' not in str(e):
+                    raise e
+            else:
+                linear_expression = _unevaluated_Add(*[_unevaluated_Mul(sympy.RealNumber(coeff), LP_Vars[index]) for index, coeff in
+                                       enumerate(self.LP_Problem.Objective_Obj.get_linear()) if coeff != 0.])
+
+                try:
+                    quadratic = self.LP_Problem.Objective_Obj.get_quadratic()
+                except IndexError:
+                    quadratic_expression = Zero
+                else:
+                    quadratic_expression = self.quad_expression_getter(quadratic)
+
+                self.objective_var = Prob_Objective(
+                    linear_expression + quadratic_expression,
+                    LP_Problem=self,
+                    Max_Or_Min_type={self.LP_Problem.Objective_Obj.eq_Sense.minimize: 'min', self.LP_Problem.Objective_Obj.eq_Sense.maximize: 'max'}[
+                        self.LP_Problem.Objective_Obj.get_sense()],
+                    name=objective_name
+                )
+        else:
+            raise Exception("the given Problem is not CPLEX model in nature.")
+        self.configuration = Prob_Configure(LP_Problem=self, Verbosity_Level=0)
+
+    def __getstate__(self):
+        Temporary_File = tempfile.mktemp(suffix=".sav")
+        self.LP_Problem.write(Temporary_File)
+        cplex_binary = open(Temporary_File, 'rb').read()
+        repr_dict = {'cplex_binary': cplex_binary, 'Lp_Status': self.Lp_Status, '__configs': self.configuration}
+        return repr_dict
+
+    def __setstate__(self, repr_dict):
+        Temporary_File = tempfile.mktemp(suffix=".sav")
+        open(Temporary_File, 'wb').write(repr_dict['cplex_binary'])
+        LP_Problem = cplex.Cplex(Temporary_File)
+        if repr_dict['Lp_Status'] == 'optimal':
+            # this will turn off the logging 
+            LP_Problem.set_error_stream(None)
+            LP_Problem.set_warning_stream(None)
+            LP_Problem.set_log_stream(None)
+            LP_Problem.set_results_stream(None)
+            LP_Problem.solve()  # optimal start so nothing to do
+        self.__init__(LP_Problem=LP_Problem)
+        self.configuration = Prob_Configure.Funct_Cloning(repr_dict['__config'], LP_Problem=self)
+
+    @property
+    def Objective_Obj(self):
+        return self.objective_var
+
+    @Objective_Obj.setter
+    def Objective_Obj(self, Var_Value):
+        if self.objective_var is not None:
+            for variable in self.Objective_Obj.LP_Vars:
+                try:
+                    self.LP_Problem.Objective_Obj.set_linear(variable.name, 0.)
+                except cplex.exceptions.CplexSolverError as e:
+                    if " 1210:" not in str(e):  # 1210 = variable not found in the model error
+                        raise e
+            if self.Objective_Obj.Check_Quadratic:
+                if self.objective_var.LP_Express.is_Mul:
+                    args = (self.objective_var.LP_Express, )
+                else:
+                    args = self.objective_var.LP_Express.args
+                for arg in args:
+                    vars = tuple(arg.atoms(sympy.Symbol))
+                    assert len(vars) <= 2
+                    try:
+                        if len(vars) == 1:
+                            self.LP_Problem.Objective_Obj.set_quadratic_coefficients(vars[0].name, vars[0].name, 0)
+                        else:
+                            self.LP_Problem.Objective_Obj.set_quadratic_coefficients(vars[0].name, vars[1].name, 0)
+                    except cplex.exceptions.CplexSolverError as e:
+                        if " 1210:" not in str(e):  # 1210 = variable not found in the model error
+                            raise e
+
+        super(Prob_Model, self.__class__).Objective_Obj.fset(self, Var_Value)
+        LP_Express = self.objective_var.LP_Express
+        if isinstance(LP_Express, float) or isinstance(LP_Express, int) or LP_Express.is_Number:
+            pass
+        else:
+            if LP_Express.is_Symbol:
+                self.LP_Problem.Objective_Obj.set_linear(LP_Express.name, 1.)
+            if LP_Express.is_Mul:
+                express_terms = (LP_Express, )
+            elif LP_Express.is_Add:
+                express_terms = LP_Express.args
+            else:
+                raise ValueError(
+                    "Provided Objective_Obj %s doesn't seem to be appropriate to be solved. please make correction" %
+                    self.objective_var)
+
+            for term_val in express_terms:
+                factors = term_val.args
+                coeff = factors[0]
+                vars = factors[1:]
+                assert len(vars) <= 2
+                if len(vars) == 2:
+                    if vars[0].name == vars[1].name:
+                        self.LP_Problem.Objective_Obj.set_quadratic_coefficients(vars[0].name, vars[1].name, 2*float(coeff))
+                    else:
+                        self.LP_Problem.Objective_Obj.set_quadratic_coefficients(vars[0].name, vars[1].name, float(coeff))
+                else:
+                    if vars[0].is_Symbol:
+                        self.LP_Problem.Objective_Obj.set_linear(vars[0].name, float(coeff))
+                    elif vars[0].is_Pow:
+                        var = vars[0].args[0]
+                        self.LP_Problem.Objective_Obj.set_quadratic_coefficients(var.name, var.name, 2*float(coeff))  # Multiply by 2 because it's on diagonal
+
+            self.LP_Problem.Objective_Obj.set_sense(
+                {'min': self.LP_Problem.Objective_Obj.eq_Sense.minimize, 'max': self.LP_Problem.Objective_Obj.eq_Sense.maximize}[
+                    Var_Value.Max_Or_Min_type])
+        self.LP_Problem.Objective_Obj.set_name(Var_Value.name)
+        Var_Value.LP_Problem = self
