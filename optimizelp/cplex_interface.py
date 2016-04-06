@@ -293,3 +293,195 @@ class Prob_Constraint(interface.Prob_Constraint):
         else:
             super(Prob_Constraint, self).__iadd__(Other_Val)
         return self
+
+
+class Prob_Objective(interface.Prob_Objective):
+    def __init__(self, *args, **kwargs):
+        super(Prob_Objective, self).__init__(*args, **kwargs)
+
+    @property
+    def Var_Value(self):
+        return self.LP_Problem.LP_Problem.solution.get_objective_value()
+
+    def __setattr__(self, name, Var_Value):
+
+        if getattr(self, 'LP_Problem', None):
+            if name == 'Max_Or_Min_type':
+                self.LP_Problem.LP_Problem.Objective_Obj.set_sense(
+                    {'min': self.LP_Problem.LP_Problem.Objective_Obj.eq_Sense.minimize, 'max': self.LP_Problem.LP_Problem.Objective_Obj.eq_Sense.maximize}[Var_Value])
+            super(Prob_Objective, self).__setattr__(name, Var_Value)
+        else:
+            super(Prob_Objective, self).__setattr__(name, Var_Value)
+
+
+class Prob_Configure(interface.MathProgConfiguration):
+
+    def __init__(self, lp_method='Primal_Prop', Tolerance_Val=1e-9, Presolve_Prop=False, Verbosity_Level=0, Times_Up=None,
+                 Solutions_Target_Prop="auto", Method_QP="Primal_Prop", *args, **kwargs):
+        super(Prob_Configure, self).__init__(*args, **kwargs)
+        self.lp_method = lp_method
+        self.Tolerance_Val = Tolerance_Val
+        self.Presolve_Prop = Presolve_Prop
+        self.Verbosity_Level = Verbosity_Level
+        self.Times_Up = Times_Up
+        self.Solutions_Target_Prop = Solutions_Target_Prop
+        self.Method_QP = Method_QP
+
+    @property
+    def lp_method(self):
+        lpmethod = self.LP_Problem.LP_Problem.parameters.lpmethod
+        try:
+            Var_Value = lpmethod.get()
+        except ReferenceError:
+            Var_Value = lpmethod.default()
+        return lpmethod.values[Var_Value]
+
+    @lp_method.setter
+    def lp_method(self, lp_method):
+        if lp_method not in Linear_Programming_Methods:
+            raise ValueError("LP Method %s is not valid (choose one of: %s)" % (lp_method, ", ".join(Linear_Programming_Methods)))
+        lp_method = getattr(self.LP_Problem.LP_Problem.parameters.lpmethod.values, lp_method)
+        self.LP_Problem.LP_Problem.parameters.lpmethod.set(lp_method)
+
+    @property
+    def Tolerance_Val(self):
+        return self._tolerance
+
+    @Tolerance_Val.setter
+    def Tolerance_Val(self, Var_Value):
+        self.LP_Problem.LP_Problem.parameters.simplex.tolerances.feasibility.set(Var_Value)
+        self.LP_Problem.LP_Problem.parameters.simplex.tolerances.optimality.set(Var_Value)
+        self.LP_Problem.LP_Problem.parameters.mip.tolerances.integrality.set(Var_Value)
+        self.LP_Problem.LP_Problem.parameters.mip.tolerances.absmipgap.set(Var_Value)
+        self.LP_Problem.LP_Problem.parameters.mip.tolerances.mipgap.set(Var_Value)
+        self._tolerance = Var_Value
+
+    @property
+    def Presolve_Prop(self):
+        return self._presolve
+
+    @Presolve_Prop.setter
+    def Presolve_Prop(self, Var_Value):
+        if self.LP_Problem is not None:
+            Presolve_Prop = self.LP_Problem.LP_Problem.parameters.preprocessing.Presolve_Prop
+            if Var_Value == True:
+                Presolve_Prop.set(Presolve_Prop.values.on)
+            elif Var_Value == False:
+                Presolve_Prop.set(Presolve_Prop.values.off)
+            else:
+                raise ValueError('%s this is not bool value for Presolve_Prop property.')
+        self._presolve = Var_Value
+
+    @property
+    def Verbosity_Level(self):
+        return self._verbosity
+
+    @Verbosity_Level.setter
+    def Verbosity_Level(self, Var_Value):
+
+        class StreamHandler(StringIO):
+
+            def __init__(self, logger, *args, **kwargs):
+                StringIO.__init__(self, *args, **kwargs)
+                self.logger = logger
+
+        class ErrorStreamHandler(StreamHandler):
+
+            def flush(self):
+                self.logger.error(self.getvalue())
+
+        class WarningStreamHandler(StreamHandler):
+
+            def flush(self):
+                self.logger.warn(self.getvalue())
+
+        class LogStreamHandler(StreamHandler):
+
+            def flush(self):
+                self.logger.debug(self.getvalue())
+
+        class ResultsStreamHandler(StreamHandler):
+
+            def flush(self):
+                self.logger.debug(self.getvalue())
+
+        logger = logging.getLogger()
+        logger.setLevel(logging.CRITICAL)
+        error_stream_handler = ErrorStreamHandler(logger)
+        warning_stream_handler = WarningStreamHandler(logger)
+        log_stream_handler = LogStreamHandler(logger)
+        results_stream_handler = LogStreamHandler(logger)
+        if self.LP_Problem is not None:
+            LP_Problem = self.LP_Problem.LP_Problem
+            if Var_Value == 0:
+                LP_Problem.set_error_stream(error_stream_handler)
+                LP_Problem.set_warning_stream(warning_stream_handler)
+                LP_Problem.set_log_stream(log_stream_handler)
+                LP_Problem.set_results_stream(results_stream_handler)
+            elif Var_Value == 1:
+                LP_Problem.set_error_stream(sys.stderr)
+                LP_Problem.set_warning_stream(warning_stream_handler)
+                LP_Problem.set_log_stream(log_stream_handler)
+                LP_Problem.set_results_stream(results_stream_handler)
+            elif Var_Value == 2:
+                LP_Problem.set_error_stream(sys.stderr)
+                LP_Problem.set_warning_stream(sys.stderr)
+                LP_Problem.set_log_stream(log_stream_handler)
+                LP_Problem.set_results_stream(results_stream_handler)
+            elif Var_Value == 3:
+                LP_Problem.set_error_stream(sys.stderr)
+                LP_Problem.set_warning_stream(sys.stderr)
+                LP_Problem.set_log_stream(sys.stdout)
+                LP_Problem.set_results_stream(sys.stdout)
+            else:
+                raise Exception(
+                    "%s valid Verbosity level is between 0 and 3."
+                    % Var_Value
+                )
+        self._verbosity = Var_Value
+
+    @property
+    def Times_Up(self):
+        return self._timeout
+
+    @Times_Up.setter
+    def Times_Up(self, Var_Value):
+        if self.LP_Problem is not None:
+            if Var_Value is None:
+                self.LP_Problem.LP_Problem.parameters.timelimit.reset()
+            else:
+                self.LP_Problem.LP_Problem.parameters.timelimit.set(Var_Value)
+        self._timeout = Var_Value
+
+    @property
+    def Solutions_Target_Prop(self):
+        if self.LP_Problem is not None:
+            return Solution_type_target[self.LP_Problem.LP_Problem.parameters.solutiontarget.get()]
+        else:
+            return None
+
+    @Solutions_Target_Prop.setter
+    def Solutions_Target_Prop(self, Var_Value):
+        if self.LP_Problem is not None:
+            if Var_Value is None:
+                self.LP_Problem.LP_Problem.parameters.solutiontarget.reset()
+            else:
+                try:
+                    Solutions_Target_Prop = Solution_type_target.index(Var_Value)
+                except ValueError:
+                    raise ValueError("%s is not a valid solution target. Choose between valid solution target %s" % (Var_Value, str(Solution_type_target)))
+                self.LP_Problem.LP_Problem.parameters.solutiontarget.set(Solutions_Target_Prop)
+        self._solution_target = self.Solutions_Target_Prop
+
+    @property
+    def Method_QP(self):
+        Var_Value = self.LP_Problem.LP_Problem.parameters.qpmethod.get()
+        return self.LP_Problem.LP_Problem.parameters.qpmethod.values[Var_Value]
+
+    @Method_QP.setter
+    def Method_QP(self, Var_Value):
+        if Var_Value not in Methods_QP:
+            raise ValueError("%s is not a valid Method_QP. Choose between  valid method %s" % (Var_Value, str(Methods_QP)))
+        method = getattr(self.LP_Problem.LP_Problem.parameters.qpmethod.values, Var_Value)
+        self.LP_Problem.LP_Problem.parameters.qpmethod.set(method)
+        self._qp_method = Var_Value
